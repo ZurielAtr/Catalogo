@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Catálogo digital interactivo con imágenes">
+    <title>Catálogo Digital con Imágenes</title>
+    <style>
+        :root {
+            --primary-color: #0077cc;
+            --overlay-color: rgba(0, 123, 255, 0.8);
+            --overlay-hover: rgba(0, 123, 255, 1);
+            --btn-bg-color: rgba(0, 0, 0, 0.5);
+            --btn-hover-color: rgba(0, 0, 0, 0.8);
+            --text-light: #ffffff;
+            --border-light: #dddddd;
+            --bg-light: #f0f0f0;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: var(--bg-light);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            overflow: hidden;
+            color: #333;
+        }
+        
+        .catalog-container {
+            width: 90%;
+            max-width: 1100px;
+            height: 95vh;
+            position: relative;
+            margin: auto;
+            box-shadow: 0 0 10px var(--shadow-color);
+            border-radius: 5px;
+            overflow: hidden;
+            background-color: white;
+        }
+        
+        .catalog {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            transition: transform 0.4s cubic-bezier(0.25, 0.1, 0.25, 1);
+            will-change: transform;
+        }
+        
+        .page {
+            min-width: 50%; /* Por defecto, dos páginas a la vez */
+            height: 100%;
+            background-color: white;
+            position: relative;
+            overflow: hidden;
+            border-right: 1px solid var(--border-light);
+        }
+        
+        .page-content {
+            height: 100%;
+            position: relative;
+        }
+        
+        .page-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            cursor: zoom-in; /* Indicador de que se puede hacer zoom */
+        }
+        
+        .page-left {
+            border-top-left-radius: 5px;
+            border-bottom-left-radius: 5px;
+        }
+        
+        .page-right {
+            border-top-right-radius: 5px;
+            border-bottom-right-radius: 5px;
+        }
+        
+        .page-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: var(--text-light);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 20;
+            user-select: none;
+        }
+        
+        .turn-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background-color: var(--btn-bg-color);
+            color: var(--text-light);
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.3s, transform 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .turn-btn:hover, .turn-btn:focus {
+            background-color: var(--btn-hover-color);
+            transform: translateY(-50%) scale(1.05);
+            outline: none;
+        }
+        
+        .turn-btn:active {
+            transform: translateY(-50%) scale(0.95);
+        }
+        
+        .prev-btn {
+            left: 20px;
+        }
+        
+        .next-btn {
+            right: 20px;
+        }
+        
+        .overlay-btn {
+            position: absolute;
+            background-color: var(--overlay-color);
+            color: var(--text-light);
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            z-index: 15;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .overlay-btn:hover, .overlay-btn:focus {
+            background-color: var(--overlay-hover);
+            transform: scale(1.05);
+            outline: none;
+        }
+        
+        .overlay-btn:active {
+            transform: scale(0.98);
+        }
+        
+        /* Estilos para el zoom */
+        .zoom-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .zoom-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        
+        .zoom-container {
+            position: relative;
+            width: 90%;
+            height: 90%;
+            overflow: hidden;
+        }
+        
+        .zoom-img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transform-origin: 0 0;
+            transition: transform 0.2s ease;
+            cursor: grab;
+        }
+        
+        .zoom-img.zoomed {
+            cursor: move;
+        }
+        
+        .zoom-img.grabbing {
+            cursor: grabbing;
+        }
+        
+        .zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 1010;
+        }
+        
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        .zoom-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        .zoom-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            z-index: 1010;
+        }
+        
+        .zoom-close:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        
+        .zoom-level {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
+            z-index: 1010;
+        }
+        
+        /* Media query para dispositivos móviles */
+        @media (max-width: 768px) {
+            .catalog-container {
+                height: 90vh;
+            }
+            
+            .page {
+                min-width: 100%; /* Una página a la vez en móviles */
+            }
+            
+            .turn-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 18px;
+            }
+            
+            .overlay-btn {
+                padding: 8px 12px;
+                font-size: 14px;
+            }
+            
+            .zoom-controls {
+                bottom: 10px;
+            }
+            
+            .zoom-btn, .zoom-close {
+                width: 35px;
+                height: 35px;
+                font-size: 16px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .turn-btn {
+                width: 35px;
+                height: 35px;
+                font-size: 16px;
+            }
+            
+            .page-indicator {
+                font-size: 12px;
+                padding: 4px 10px;
+            }
+            
+            .catalog-container {
+                width: 95%;
+            }
+        }
+
+        /* Añadir soporte para preferencias reducidas de movimiento */
+        @media (prefers-reduced-motion: reduce) {
+            .catalog, .page-image, .turn-btn, .overlay-btn, .zoom-img {
+                transition: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="catalog-container" aria-label="Catálogo digital interactivo">
+        <div class="catalog" id="catalog" aria-live="polite">
+            <!-- Las páginas se generarán dinámicamente con JavaScript -->
+        </div>
+        
+        <button class="turn-btn prev-btn" id="prevBtn" aria-label="Página anterior">&#10094;</button>
+        <button class="turn-btn next-btn" id="nextBtn" aria-label="Página siguiente">&#10095;</button>
+        
+        <div class="page-indicator" id="pageIndicator" aria-live="polite">Cargando catálogo...</div>
+    </div>
+    
+    <!-- Overlay para zoom de imágenes -->
+    <div id="zoomOverlay" class="zoom-overlay" aria-hidden="true">
+        <div class="zoom-container">
+            <img id="zoomImg" class="zoom-img" src="" alt="Imagen ampliada">
+            <div class="zoom-level" id="zoomLevel">100%</div>
+        </div>
+        <div class="zoom-controls">
+            <button id="zoomOut" class="zoom-btn" aria-label="Reducir zoom">-</button>
+            <button id="zoomReset" class="zoom-btn" aria-label="Restablecer zoom">&#8635;</button>
+            <button id="zoomIn" class="zoom-btn" aria-label="Aumentar zoom">+</button>
+        </div>
+        <button id="zoomClose" class="zoom-close" aria-label="Cerrar zoom">&times;</button>
+    </div>
+
+    <script>
+        // Datos del catálogo con imágenes y botones superpuestos
+        const catalogData = [
+            // Página 1
+            {
+                image: "img/PAGE1.jpg",
+                buttons: [
+                    { text: "Ver Detalles", x: 20, y: 20, action: "details" },
+                    { text: "Comprar Ahora", x: 20, y: 70, action: "buy" }
+                ]
+            },
+            // Página 2
+            {
+                image: "img/PAGE2.jpg",
+                buttons: [
+                    { text: "Equipos de Fútbol", x: 60, y: 30, action: "football" },
+                    { text: "Solicitar Catálogo", x: 60, y: 80, action: "request" }
+                ]
+            },
+            // Página 3
+            {
+                image: "img/PAGE3.jpg",
+                buttons: [
+                    { text: "Equipamiento Profesional", x: 30, y: 40, action: "pro" },
+                    { text: "Ofertas Especiales", x: 30, y: 90, action: "offers" }
+                ]
+            },
+            // Página 4
+            {
+                image: "img/PAGE4.jpg",
+                buttons: [
+                    { text: "Atletismo", x: 70, y: 50, action: "athletics" },
+                    { text: "Contactar Asesor", x: 70, y: 100, action: "advisor" }
+                ]
+            },
+            // Página 5
+            {
+                image: "img/PAGE5.jpg",
+                buttons: [
+                    { text: "Equipos Escolares", x: 40, y: 60, action: "school" },
+                    { text: "Solicitar Presupuesto", x: 40, y: 110, action: "quote" }
+                ]
+            },
+            // Página 6
+            {
+                image: "img/PAGE6.jpg",
+                buttons: [
+                    { text: "Natación", x: 50, y: 70, action: "swimming" },
+                    { text: "Equipos Completos", x: 50, y: 120, action: "teams" }
+                ]
+            },
+            // Página 7
+            {
+                image: "img/PAGE7.jpg",
+                buttons: [
+                    { text: "Baloncesto", x: 60, y: 80, action: "basketball" },
+                    { text: "Uniformes Personalizados", x: 60, y: 130, action: "uniforms" }
+                ]
+            },
+            // Página 8
+            {
+                image: "img/PAGE8.jpg",
+                buttons: [
+                    { text: "Contacto", x: 70, y: 90, action: "contact" },
+                    { text: "Ubicaciones", x: 70, y: 140, action: "locations" }
+                ]
+            },
+            // Página 9
+            {
+                image: "img/PAGE9.jpg",
+                buttons: [
+                    { text: "Nuestros Servicios", x: 70, y: 90, action: "services" },
+                    { text: "Proyectos Deportivos", x: 70, y: 140, action: "projects" }
+                ]
+            },
+            // Página 10
+            {
+                image: "img/PAGE10.jpg",
+                buttons: [
+                    { text: "Testimonios", x: 70, y: 90, action: "testimonials" },
+                    { text: "Nuestros Clientes", x: 70, y: 140, action: "clients" }
+                ]
+            },
+            // Página 11
+            {
+                image: "img/PAGE11.jpg",
+                buttons: [
+                    { text: "Galería", x: 70, y: 90, action: "gallery" },
+                    { text: "Descargas", x: 70, y: 140, action: "downloads" }
+                ]
+            }
+        ];
+
+        // Elementos del DOM para el catálogo
+        const catalogElement = document.getElementById('catalog');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const pageIndicator = document.getElementById('pageIndicator');
+
+        // Elementos del DOM para el zoom
+        const zoomOverlay = document.getElementById('zoomOverlay');
+        const zoomImg = document.getElementById('zoomImg');
+        const zoomLevel = document.getElementById('zoomLevel');
+        const zoomIn = document.getElementById('zoomIn');
+        const zoomOut = document.getElementById('zoomOut');
+        const zoomReset = document.getElementById('zoomReset');
+        const zoomClose = document.getElementById('zoomClose');
+
+        // Variables de control del catálogo
+        let currentPage = 0;
+        const totalPages = catalogData.length;
+        let pagesPerView = 2; // Por defecto, 2 páginas a la vez
+        let isMobile = false;
+        let isAnimating = false;
+
+        // Variables de control del zoom
+        let currentZoom = 1;
+        let minZoom = 1;
+        let maxZoom = 3;
+        let zoomStep = 0.5;
+        let startX = 0;
+        let startY = 0;
+        let translateX = 0;
+        let translateY = 0;
+        let isDragging = false;
+        
+        // Función para verificar si es un dispositivo móvil
+        function checkMobile() {
+            const oldIsMobile = isMobile;
+            isMobile = window.innerWidth <= 768;
+            
+            // Si cambió el estado de móvil/escritorio, actualizar la vista
+            if (oldIsMobile !== isMobile) {
+                pagesPerView = isMobile ? 1 : 2;
+                
+                // Asegurarse de que la página actual sea par en modo escritorio
+                if (!isMobile && currentPage % 2 !== 0) {
+                    currentPage = Math.max(0, currentPage - 1);
+                }
+                
+                createCatalogPages();
+            }
+        }
+
+        // Función para crear las páginas del catálogo
+        function createCatalogPages() {
+            catalogElement.innerHTML = '';
+            
+            catalogData.forEach((page, index) => {
+                const pageElement = document.createElement('div');
+                pageElement.className = `page ${index % 2 === 0 ? 'page-left' : 'page-right'}`;
+                pageElement.setAttribute('aria-label', `Página ${index + 1}`);
+                
+                const pageContent = document.createElement('div');
+                pageContent.className = 'page-content';
+                
+                // Crear la imagen de fondo directamente (sin lazy loading)
+                const pageImage = document.createElement('img');
+                pageImage.className = 'page-image';
+                pageImage.src = page.image;
+                pageImage.alt = `Imagen página ${index + 1}`;
+                
+                // Añadir evento de clic para abrir el zoom
+                pageImage.addEventListener('click', function() {
+                    openZoom(page.image, index + 1);
+                });
+                
+                pageContent.appendChild(pageImage);
+                
+                // Crear los botones superpuestos
+                if (page.buttons && page.buttons.length > 0) {
+                    page.buttons.forEach(button => {
+                        const overlayBtn = document.createElement('button');
+                        overlayBtn.className = 'overlay-btn';
+                        overlayBtn.textContent = button.text;
+                        overlayBtn.setAttribute('aria-label', button.text);
+                        
+                        // Hacer que las posiciones sean responsivas usando porcentajes
+                        overlayBtn.style.left = `${button.x}%`;
+                        overlayBtn.style.top = `${button.y}%`;
+                        
+                        overlayBtn.addEventListener('click', () => {
+                            alert(`Has hecho clic en: ${button.text}`);
+                        });
+                        
+                        pageContent.appendChild(overlayBtn);
+                    });
+                }
+                
+                pageElement.appendChild(pageContent);
+                catalogElement.appendChild(pageElement);
+            });
+            
+            updateCatalogView();
+        }
+
+        // Función para actualizar la vista del catálogo
+        function updateCatalogView() {
+            // El desplazamiento depende de si es móvil o escritorio
+            const pageWidth = isMobile ? 100 : 50;
+            const translateX = -currentPage * pageWidth + '%';
+            catalogElement.style.transform = `translateX(${translateX})`;
+            
+            // Actualizar indicador de página
+            const startPage = currentPage + 1;
+            const endPage = isMobile ? startPage : Math.min(currentPage + pagesPerView, totalPages);
+            
+            if (isMobile) {
+                pageIndicator.textContent = `Página ${startPage} de ${totalPages}`;
+            } else {
+                pageIndicator.textContent = `Páginas ${startPage}-${endPage} de ${totalPages}`;
+            }
+            
+            // Habilitar/deshabilitar botones de navegación
+            prevBtn.disabled = currentPage === 0;
+            prevBtn.style.opacity = currentPage === 0 ? '0.5' : '1';
+            
+            const lastPageIndex = isMobile ? totalPages - 1 : totalPages - pagesPerView;
+            nextBtn.disabled = currentPage >= lastPageIndex;
+            nextBtn.style.opacity = currentPage >= lastPageIndex ? '0.5' : '1';
+        }
+
+        // Funciones para el zoom de imágenes
+        function openZoom(imageSrc, pageNum) {
+            // Restablecer valores de zoom
+            resetZoom();
+            
+            // Establecer la imagen en el zoom
+            zoomImg.src = imageSrc;
+            zoomImg.alt = `Página ${pageNum} ampliada`;
+            
+            // Mostrar el overlay
+            zoomOverlay.classList.add('active');
+            zoomOverlay.setAttribute('aria-hidden', 'false');
+            
+            // Bloquear el scroll de la página
+            document.body.style.overflow = 'hidden';
+            
+            // Enfocar la imagen para navegación por teclado
+            zoomImg.focus();
+        }
+
+        function closeZoom() {
+            // Ocultar el overlay
+            zoomOverlay.classList.remove('active');
+            zoomOverlay.setAttribute('aria-hidden', 'true');
+            
+            // Desbloquear el scroll
+            document.body.style.overflow = '';
+            
+            // Restablecer zoom
+            resetZoom();
+        }
+
+        function resetZoom() {
+            currentZoom = 1;
+            translateX = 0;
+            translateY = 0;
+            
+            updateZoomTransform();
+            zoomLevel.textContent = '100%';
+            
+            zoomImg.classList.remove('zoomed');
+            isDragging = false;
+        }
+
+        function updateZoomTransform() {
+            zoomImg.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentZoom})`;
+        }
+
+        function handleZoomIn() {
+            if (currentZoom < maxZoom) {
+                currentZoom += zoomStep;
+                currentZoom = Math.min(currentZoom, maxZoom);
+                
+                zoomImg.classList.add('zoomed');
+                updateZoomTransform();
+                zoomLevel.textContent = `${Math.round(currentZoom * 100)}%`;
+            }
+        }
+
+        function handleZoomOut() {
+            if (currentZoom > minZoom) {
+                currentZoom -= zoomStep;
+                currentZoom = Math.max(currentZoom, minZoom);
+                
+                updateZoomTransform();
+                zoomLevel.textContent = `${Math.round(currentZoom * 100)}%`;
+                
+                if (currentZoom === minZoom) {
+                    zoomImg.classList.remove('zoomed');
+                    translateX = 0;
+                    translateY = 0;
+                    updateZoomTransform();
+                }
+            }
+        }
+
+        // Inicializar eventos para zoom
+        function initZoomEvents() {
+            // Botones de control de zoom
+            zoomIn.addEventListener('click', handleZoomIn);
+            zoomOut.addEventListener('click', handleZoomOut);
+            zoomReset.addEventListener('click', resetZoom);
+            zoomClose.addEventListener('click', closeZoom);
+            
+            // Cerrar zoom al hacer clic fuera de la imagen
+            zoomOverlay.addEventListener('click', function(e) {
+                if (e.target === zoomOverlay) {
+                    closeZoom();
+                }
+            });
+            
+            // Cerrar zoom con ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && zoomOverlay.classList.contains('active')) {
+                    closeZoom();
+                }
+            });
+            
+            // Eventos para arrastrar la imagen
+            zoomImg.addEventListener('mousedown', startDrag);
+            zoomImg.addEventListener('touchstart', function(e) {
+                const touch = e.touches[0];
+                startDrag({ clientX: touch.clientX, clientY: touch.clientY });
+            }, { passive: true });
+            
+            window.addEventListener('mousemove', drag);
+            window.addEventListener('touchmove', function(e) {
+                if (isDragging) {
+                    e.preventDefault(); // Prevenir scroll de la página
+                    const touch = e.touches[0];
+                    drag({ clientX: touch.clientX, clientY: touch.clientY });
+                }
+            }, { passive: false });
+            
+            window.addEventListener('mouseup', endDrag);
+            window.addEventListener('touchend', endDrag);
+            
+            // Zoom con rueda del ratón
+            zoomContainer = document.querySelector('.zoom-container');
+            zoomContainer.addEventListener('wheel', function(e) {
+                e.preventDefault();
+                if (e.deltaY < 0) {
+                    handleZoomIn();
+                } else {
+                    handleZoomOut();
+                }
+            }, { passive: false });
+            
+            // Soporte para pinch zoom en dispositivos táctiles
+            let initialPinchDistance = 0;
+            let initialZoom = 1;
+            
+            zoomContainer.addEventListener('touchstart', function(e) {
+                if (e.touches.length === 2) {
+                    initialPinchDistance = getPinchDistance(e);
+                    initialZoom = currentZoom;
+                }
+            }, { passive: true });
+            
+            zoomContainer.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    const currentDistance = getPinchDistance(e);
+                    const scaleFactor = currentDistance / initialPinchDistance;
+                    
+                    currentZoom = initialZoom * scaleFactor;
+                    currentZoom = Math.max(minZoom, Math.min(maxZoom, currentZoom));
+                    
+                    updateZoomTransform();
+                    zoomLevel.textContent = `${Math.round(currentZoom * 100)}%`;
+                    
+                    if (currentZoom > minZoom) {
+                        zoomImg.classList.add('zoomed');
+                    } else {
+                        zoomImg.classList.remove('zoomed');
+                        translateX = 0;
+                        translateY = 0;
+                        updateZoomTransform();
+                    }
+                }
+            }, { passive: false });
+        }
+        
+        function startDrag(e) {
+            if (currentZoom > minZoom) {
+                isDragging = true;
+                startX = e.clientX - translateX;
+                startY = e.clientY - translateY;
+                zoomImg.classList.add('grabbing');
+            }
+        }
+        
+        function drag(e) {
+            if (isDragging) {
+                const newTranslateX = e.clientX - startX;
+                const newTranslateY = e.clientY - startY;
+                
+                // Limitar movimiento para no salir de los bordes
+                const zoomContainerRect = document.querySelector('.zoom-container').getBoundingClientRect();
+                const imgRect = zoomImg.getBoundingClientRect();
+                
+                const maxX = (imgRect.width * currentZoom - zoomContainerRect.width) / 2;
+                const maxY = (imgRect.height * currentZoom - zoomContainerRect.height) / 2;
+                
+                translateX = Math.max(-maxX, Math.min(maxX, newTranslateX));
+                translateY = Math.max(-maxY, Math.min(maxY, newTranslateY));
+                
+                updateZoomTransform();
+            }
+        }
+        
+        function endDrag() {
+            isDragging = false;
+            zoomImg.classList.remove('grabbing');
+        }
+        
+        function getPinchDistance(e) {
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            return Math.sqrt(
+                Math.pow(touch2.clientX - touch1.clientX, 2) + 
+                Math.pow(touch2.clientY - touch1.clientY, 2)
+            );
+        }
+
+        // Event listeners para los botones de navegación
+        prevBtn.addEventListener('click', () => {
+            if (currentPage > 0 && !isAnimating) {
+                isAnimating = true;
+                currentPage -= isMobile ? 1 : pagesPerView;
+                updateCatalogView();
+                setTimeout(() => { isAnimating = false; }, 400);
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            const lastPageIndex = isMobile ? totalPages - 1 : totalPages - pagesPerView;
+            if (currentPage < lastPageIndex && !isAnimating) {
+                isAnimating = true;
+                currentPage += isMobile ? 1 : pagesPerView;
+                updateCatalogView();
+                setTimeout(() => { isAnimating = false; }, 400);
+            }
+        });
+
+        // Añadir soporte para gestos táctiles (swipe)
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        catalogElement.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+        
+        catalogElement.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, { passive: true });
+        
+        function handleSwipe() {
+            const swipeThreshold = 50; // Umbral mínimo para considerar un swipe
+            
+            if (touchEndX < touchStartX - swipeThreshold) {
+                // Swipe izquierda (siguiente página)
+                const lastPageIndex = isMobile ? totalPages - 1 : totalPages - pagesPerView;
+                if (currentPage < lastPageIndex && !isAnimating) {
+                    isAnimating = true;
+                    currentPage += isMobile ? 1 : pagesPerView;
+                    updateCatalogView();
+                    setTimeout(() => { isAnimating = false; }, 400);
+                }
+            }
+            
+            if (touchEndX > touchStartX + swipeThreshold) {
+                // Swipe derecha (página anterior)
+                if (currentPage > 0 && !isAnimating) {
+                    isAnimating = true;
+                    currentPage -= isMobile ? 1 : pagesPerView;
+                    updateCatalogView();
+                    setTimeout(() => { isAnimating = false; }, 400);
+                }
+            }
+        }
+
+        // Soporte para navegación por teclado
+        document.addEventListener('keydown', (e) => {
+            // Solo si el zoom no está activo
+            if (!zoomOverlay.classList.contains('active')) {
+                if (e.key === 'ArrowLeft') {
+                    prevBtn.click();
+                } else if (e.key === 'ArrowRight') {
+                    nextBtn.click();
+                }
+            }
+        });
+
+        // Inicializar
+        checkMobile();
+        createCatalogPages();
+        initZoomEvents();
+        
+        // Ajustar el catálogo cuando cambia el tamaño de la ventana
+        window.addEventListener('resize', () => {
+            checkMobile();
+            updateCatalogView();
+        });
+    </script>
+</body>
+</html>
